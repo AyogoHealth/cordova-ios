@@ -39,6 +39,7 @@
 @property (nonatomic, readwrite, strong) NSMutableArray* startupPluginNames;
 @property (nonatomic, readwrite, strong) NSDictionary* pluginsMap;
 @property (nonatomic, readwrite, strong) id <CDVWebViewEngineProtocol> webViewEngine;
+@property (nonatomic, readwrite, strong) UIView* splashScreenView;
 
 @property (readwrite, assign) BOOL initialized;
 
@@ -73,7 +74,8 @@
                                                      name:UIApplicationWillEnterForegroundNotification object:nil];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onAppDidEnterBackground:)
                                                      name:UIApplicationDidEnterBackgroundNotification object:nil];
-
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(webViewLoaded) name:CDVPageDidLoadNotification object:nil];
+        
         // read from UISupportedInterfaceOrientations (or UISupportedInterfaceOrientations~iPad, if its iPad) from -Info.plist
         self.supportedOrientations = [self parseInterfaceOrientations:
             [[[NSBundle mainBundle] infoDictionary] objectForKey:@"UISupportedInterfaceOrientations"]];
@@ -570,10 +572,113 @@
     webViewBounds.origin = self.view.bounds.origin;
 
     UIView* view = [self newCordovaViewWithFrame:webViewBounds];
+    view.hidden = true;
 
     view.autoresizingMask = (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight);
+    [self setupSplashScreenView];
+    
+    [self.view addSubview:self.splashScreenView];
     [self.view addSubview:view];
     [self.view sendSubviewToBack:view];
+}
+
+
+/**
+ Add an splashScreenView to show the same view as the launch screen when the app shows the mainviewcontroller
+ This is to prevent 2 issues: resizing of the view and the flashing of the mainview before the webview is finished loading
+ */
+- (void) setupSplashScreenView {
+    self.splashScreenView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, self.view.bounds.size.height)];
+    self.splashScreenView.autoresizingMask = (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight);
+    
+    if([self isUsingCDVLaunchScreen]) {
+        [self.splashScreenView addSubview:[self getLaunchStoryboardSnapshot]];
+        return;
+    }
+    
+    [self.splashScreenView addSubview: [self getLaunchImage]];
+}
+
+
+/**
+ Takes a snapshot of the CDVLaunchStoryboard
+
+ @return UIView containing an image of the snapshot of the CDVLaunchStoryboard
+ */
+- (UIView* ) getLaunchStoryboardSnapshot {
+    UIStoryboard *storyboard = [UIStoryboard storyboardWithName:
+                                @"CDVLaunchScreen" bundle:[NSBundle mainBundle]];
+    UIViewController *vc = [storyboard instantiateViewControllerWithIdentifier:@"CDVLaunchScreen"];
+    return [vc.view snapshotViewAfterScreenUpdates:true];
+}
+
+
+/**
+ Generates the imageview containing the appropriate launch image
+
+ @return UIImageView of the appropriate launch image
+ */
+- (UIImageView*)getLaunchImage
+{
+    NSArray *launchPNGNames = [[NSBundle mainBundle] pathsForResourcesOfType:@"png"
+                                                                   inDirectory:nil];
+    UIImage* image = [self getSplashImage:launchPNGNames forScale:[UIScreen mainScreen].scale];
+    
+    UIImageView* imageView = [[UIImageView alloc] initWithImage:image];
+    CGSize viewPortSize = [UIApplication sharedApplication].delegate.window.bounds.size;
+    imageView.frame = CGRectMake(0, 0, viewPortSize.width, viewPortSize.height);
+    imageView.contentMode = UIViewContentModeScaleAspectFill;
+    
+    return imageView;
+}
+
+/**
+ Finds the appropriate launch image recursively checking/decrementing the scale
+ This is due to the default launchimage loading as a 2x image when the screen is 3x
+ Occurs when there is no launch image provided for the given device
+
+ @param launchPNGNames an NSArray of launch images from the bundle
+ @param scale CGFloat of the starting scale - should be the current device screen scale
+ @return UIImage of the appropriate launch image
+ */
+- (UIImage* ) getSplashImage: (NSArray* )launchPNGNames forScale:(CGFloat)scale {
+    if (scale < 0 ) {
+        return [UIImage imageNamed:@"LaunchImage"];
+    }
+    UIImage* image = nil;
+    for (NSString *imgName in launchPNGNames){
+        if ([imgName containsString:@"LaunchImage"]){
+            UIImage *img = [UIImage imageNamed: imgName];
+            if (img.scale == scale && CGSizeEqualToSize(img.size, [UIScreen mainScreen].bounds.size)) {
+                image = img;
+                break;
+            }
+        }
+    }
+    return image == nil ? [self getSplashImage:launchPNGNames forScale:scale-1] : image;
+}
+
+/*
+ * Reference from https://github.com/apache/cordova-plugin-splashscreen/blob/master/src/ios/CDVSplashScreen.m
+ */
+- (BOOL) isUsingCDVLaunchScreen {
+    NSString* launchStoryboardName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UILaunchStoryboardName"];
+    if (launchStoryboardName) {
+        return ([launchStoryboardName isEqualToString:@"CDVLaunchScreen"]);
+    } else {
+        return NO;
+    }
+}
+
+/**
+ Show the webview and fade out the intermediary view
+ This is to prevent the flashing of the mainViewController
+ */
+- (void) webViewLoaded {
+    self.webView.hidden = false;
+    [UIView animateWithDuration:1 animations:^{
+        [self.splashScreenView setAlpha:0];
+    }];
 }
 
 - (void)didReceiveMemoryWarning
