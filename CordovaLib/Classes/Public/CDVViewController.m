@@ -602,7 +602,7 @@
 
 /**
  Takes a snapshot of the CDVLaunchStoryboard
-
+ 
  @return UIView containing an image of the snapshot of the CDVLaunchStoryboard
  */
 - (UIView* ) getLaunchStoryboardSnapshot {
@@ -672,13 +672,46 @@
 
 /**
  Show the webview and fade out the intermediary view
- This is to prevent the flashing of the mainViewController
+ Supported preferences:
+ AutoHideSplashScreen BOOL - toggle to allow manual hiding and showing of splash screen
+ SplashScreenDelay int - duration to continue showing the splashscreen after webview has finished loading
+ FadeSplashScreenDuration int - duration of fade out animation for the splash screen
+ 
+ NOT SUPPORTED:
+ SplashScreenDelay = 0 to disable splashscreen; by default the splashscreen will always show due to a bug related to the flickering of the mainview
+ FadeSplashScreen to enable/disable the animation; by default the splashscreen will fade a minimum of 0.25 seconds for better UX
+ 
+ Reference: https://cordova.apache.org/docs/en/latest/reference/cordova-plugin-splashscreen/index.html#preferences
  */
 - (void) webViewLoaded {
     self.webView.hidden = false;
-    [UIView animateWithDuration:1 animations:^{
-        [self.splashScreenView setAlpha:0];
-    }];
+    CGFloat splashScreenDelay = [self.settings cordovaFloatSettingForKey:@"SplashScreenDelay" defaultValue:0];
+    // AnimateWithDuration takes seconds but cordova documentation specifies milliseconds
+    CGFloat fadeSplashScreenDuration = [self.settings cordovaFloatSettingForKey:@"FadeSplashScreenDuration" defaultValue:250]/1000;
+    //Setting default value for fade to 0.25 seconds
+    fadeSplashScreenDuration = fadeSplashScreenDuration < 0.25 ? 0.25 : fadeSplashScreenDuration;
+    if ([self.settings cordovaBoolSettingForKey:@"AutoHideSplashScreen" defaultValue:true]) {
+        // Divide by 1000 because config returns milliseconds and NSTimer takes seconds
+        CGFloat delayToFade = (MAX(splashScreenDelay, fadeSplashScreenDuration) - fadeSplashScreenDuration)/1000;
+        [NSTimer scheduledTimerWithTimeInterval:delayToFade repeats:NO block:^(NSTimer * _Nonnull timer) {
+            [self toggleSplashScreen:true withDuration:fadeSplashScreenDuration];
+        }];
+    }
+}
+
+/**
+ Hook to enable splashscreen toggling from javascript
+
+ @param shouldHideSplashScreen BOOL - hide splashscreen
+ @param duration CGFloat - of fade animation
+ */
+- (void)toggleSplashScreen:(BOOL)shouldHideSplashScreen withDuration:(CGFloat)duration
+{
+    if (shouldHideSplashScreen) {
+        [UIView animateWithDuration:duration animations:^{
+            [self.splashScreenView setAlpha:0];
+        }];
+    }
 }
 
 - (void)didReceiveMemoryWarning
