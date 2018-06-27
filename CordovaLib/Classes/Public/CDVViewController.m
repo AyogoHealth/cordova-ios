@@ -694,7 +694,9 @@
         // Divide by 1000 because config returns milliseconds and NSTimer takes seconds
         CGFloat delayToFade = (MAX(splashScreenDelay, fadeSplashScreenDuration) - fadeSplashScreenDuration)/1000;
         [NSTimer scheduledTimerWithTimeInterval:delayToFade repeats:NO block:^(NSTimer * _Nonnull timer) {
-            [self toggleSplashScreen:true withDuration:fadeSplashScreenDuration];
+            [UIView animateWithDuration:fadeSplashScreenDuration animations:^{
+                [self shouldHideSplashScreen:false];
+            }];
         }];
     }
 }
@@ -702,16 +704,11 @@
 /**
  Hook to enable splashscreen toggling from javascript
 
- @param shouldHideSplashScreen BOOL - hide splashscreen
- @param duration CGFloat - of fade animation
+ @param shouldHideSplashScreen BOOL - hide/show splashscreen
  */
-- (void)toggleSplashScreen:(BOOL)shouldHideSplashScreen withDuration:(CGFloat)duration
+- (void)shouldHideSplashScreen:(BOOL)toggle
 {
-    if (shouldHideSplashScreen) {
-        [UIView animateWithDuration:duration animations:^{
-            [self.splashScreenView setAlpha:0];
-        }];
-    }
+    [self.splashScreenView setAlpha:toggle ? 0 : 1];
 }
 
 - (void)didReceiveMemoryWarning
