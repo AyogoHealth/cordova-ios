@@ -695,7 +695,7 @@
         CGFloat delayToFade = (MAX(splashScreenDelay, fadeSplashScreenDuration) - fadeSplashScreenDuration)/1000;
         [NSTimer scheduledTimerWithTimeInterval:delayToFade repeats:NO block:^(NSTimer * _Nonnull timer) {
             [UIView animateWithDuration:fadeSplashScreenDuration animations:^{
-                [self shouldHideSplashScreen:false];
+                [self shouldHideSplashScreen:true];
             }];
         }];
     }
