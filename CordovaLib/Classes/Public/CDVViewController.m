@@ -608,7 +608,7 @@
 - (UIView* ) getLaunchStoryboardSnapshot {
     UIStoryboard *storyboard = [UIStoryboard storyboardWithName:
                                 @"CDVLaunchScreen" bundle:[NSBundle mainBundle]];
-    UIViewController *vc = [storyboard instantiateViewControllerWithIdentifier:@"CDVLaunchScreen"];
+    UIViewController *vc = [storyboard instantiateInitialViewController];
     return [vc.view snapshotViewAfterScreenUpdates:true];
 }
 
